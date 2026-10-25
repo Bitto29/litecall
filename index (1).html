@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14181c">
+<title>LiteCall</title>
+<style>
+  :root{
+    --bg:#14181c; --panel:#1d2329; --line:#2b333b; --text:#e8edf1; --dim:#8b97a3;
+    --accent:#3ddc97; --accent-ink:#06281a; --danger:#ff5d5d; --me:#24413a; --them:#262e36;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       -webkit-tap-highlight-color:transparent;overflow:hidden}
+  button,input,select{font:inherit;color:inherit}
+  button{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;cursor:pointer}
+  button:active{background:var(--line)}
+  button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+  button.danger{background:var(--danger);border-color:var(--danger);color:#fff;font-weight:700}
+  button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  input,select{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%}
+  .hidden{display:none!important}
+
+  /* Home */
+  #home{height:100%;display:flex;flex-direction:column;justify-content:center;gap:18px;max-width:420px;margin:0 auto;padding:24px}
+  #home h1{font-size:30px;letter-spacing:-.5px}
+  #home p.sub{color:var(--dim);margin-top:-10px}
+  .row{display:flex;gap:8px}
+  .stack{display:flex;flex-direction:column;gap:8px}
+  .divider{color:var(--dim);text-align:center;font-size:13px}
+  #codeIn{text-transform:uppercase;letter-spacing:4px;text-align:center;font-size:20px;font-weight:700}
+
+  /* Room */
+  #room{height:100%;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0);padding-bottom:env(safe-area-inset-bottom,0)}
+  header{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line)}
+  header .code{font-weight:800;letter-spacing:3px;font-size:18px}
+  header .status{flex:1;color:var(--dim);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--dim);margin-right:6px}
+  header .dot.on{background:var(--accent)}
+  header button{padding:7px 10px;font-size:13px}
+
+  #callPanel{position:relative;background:#000;flex:0 0 auto;height:42vh;max-height:60vh}
+  #remoteVideo{width:100%;height:100%;object-fit:contain;background:#000}
+  #localVideo{position:absolute;right:8px;bottom:56px;width:84px;height:112px;object-fit:cover;border-radius:8px;
+              border:1px solid var(--line);background:#111;transform:scaleX(-1)}
+  #localVideo.back{transform:none}
+  #callInfo{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.6);padding:3px 8px;border-radius:6px;font-size:12px}
+  #audioOnly{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:16px;text-align:center;padding:20px}
+  #callBar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:6px;justify-content:center;padding:8px;background:rgba(0,0,0,.55);flex-wrap:wrap}
+  #callBar button,#callBar select{padding:8px 10px;font-size:13px;width:auto}
+
+  #msgs{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px}
+  .m{max-width:82%;padding:8px 11px;border-radius:12px;word-wrap:break-word;overflow-wrap:anywhere;white-space:pre-wrap}
+  .m.me{align-self:flex-end;background:var(--me)}
+  .m.them{align-self:flex-start;background:var(--them)}
+  .m.sys{align-self:center;background:none;color:var(--dim);font-size:12px;text-align:center}
+  .m small{display:block;color:var(--dim);font-size:11px;margin-top:2px}
+
+  #composer{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--line)}
+  #composer input{flex:1}
+  #callBtns{display:flex;gap:6px;padding:0 10px 8px}
+  #callBtns button{flex:1}
+
+  /* Incoming call */
+  #incoming{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:10;padding:20px}
+  #incoming .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;width:100%;max-width:320px;text-align:center}
+  #incoming h2{font-size:19px;margin-bottom:16px}
+  #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#000;border:1px solid var(--line);padding:8px 14px;border-radius:8px;font-size:13px;z-index:20;max-width:90%}
+  @media (min-width:800px){
+    #room{max-width:900px;margin:0 auto}
+    #callPanel{height:50vh}
+  }
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<div id="home">
+  <h1>LiteCall</h1>
+  <p class="sub">Chat and video calls that stay smooth on slow phones and weak internet.</p>
+  <div class="stack">
+    <input id="nameIn" placeholder="Your name" maxlength="20" autocomplete="off">
+    <button id="createBtn" class="primary">Create a room</button>
+  </div>
+  <div class="divider">or join your friend's room</div>
+  <div class="stack">
+    <input id="codeIn" placeholder="CODE" maxlength="6" autocomplete="off" autocapitalize="characters">
+    <button id="joinBtn">Join room</button>
+  </div>
+  <p id="homeErr" style="color:var(--danger);font-size:13px;min-height:18px"></p>
+</div>
+
+<!-- ROOM -->
+<div id="room" class="hidden">
+  <header>
+    <span class="code" id="codeLbl"></span>
+    <span class="status"><span class="dot" id="dot"></span><span id="statusTxt">Starting…</span></span>
+    <button id="copyBtn">Share</button>
+    <button id="leaveBtn">Leave</button>
+  </header>
+
+  <div id="callPanel" class="hidden">
+    <video id="remoteVideo" autoplay playsinline></video>
+    <video id="localVideo" autoplay playsinline muted></video>
+    <div id="audioOnly" class="hidden">Voice only</div>
+    <div id="callInfo">Connecting…</div>
+    <div id="callBar">
+      <button id="muteBtn">Mute</button>
+      <button id="camBtn">Camera off</button>
+      <button id="flipBtn">Flip</button>
+      <button id="selfBtn">Hide me</button>
+      <select id="qualSel" aria-label="Video quality">
+        <option value="auto">Auto quality</option>
+        <option value="1">Low</option>
+        <option value="2">Medium</option>
+        <option value="3">High</option>
+      </select>
+      <button id="endBtn" class="danger">End</button>
+    </div>
+  </div>
+
+  <div id="msgs"></div>
+
+  <div id="callBtns">
+    <button id="vidBtn" class="primary" disabled>Video call</button>
+    <button id="vcBtn" disabled>Voice call</button>
+  </div>
+  <div id="composer">
+    <input id="msgIn" placeholder="Type a message" autocomplete="off" maxlength="2000">
+    <button id="sendBtn" class="primary">Send</button>
+  </div>
+</div>
+
+<!-- INCOMING -->
+<div id="incoming" class="hidden">
+  <div class="box">
+    <h2 id="incomingTxt">Incoming call</h2>
+    <div class="row">
+      <button id="declineBtn" class="danger" style="flex:1">Decline</button>
+      <button id="acceptBtn" class="primary" style="flex:1">Accept</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ============ CONFIG ============ */
+// STUN works for most home Wi-Fi. Many mobile carriers (CGNAT) block direct
+// connections, so add a TURN server here for those cases, e.g.:
+// {urls:'turn:YOUR_HOST:443?transport=tcp', username:'USER', credential:'PASS'}
+const TURN = [];
+const ICE = {
+  iceServers: [
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun1.l.google.com:19302'},
+    {urls:'stun:global.stun.twilio.com:3478'}
+  ].concat(TURN)
+};
+
+// level: 1 = low, 2 = medium, 3 = high
+const LEVELS = {
+  1:{w:320,h:240,fps:15,kbps:150,name:'Low'},
+  2:{w:480,h:360,fps:20,kbps:320,name:'Medium'},
+  3:{w:640,h:480,fps:24,kbps:600,name:'High'}
+};
+const AUDIO_KBPS = 24;
+const LOW_SPEC = (navigator.hardwareConcurrency||4) <= 4 || (navigator.deviceMemory||4) <= 2;
+const MAX_AUTO = LOW_SPEC ? 2 : 3;
+
+/* ============ HELPERS ============ */
+const $ = id => document.getElementById(id);
+const CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const genCode = () => Array.from({length:6},()=>CHARS[Math.floor(Math.random()*CHARS.length)]).join('');
+const pid = code => 'litecall-' + code;
+const safe = (fn)=>{ try{ return fn(); }catch(e){ return undefined; } };
+
+let peer=null, conn=null, call=null, incoming=null;
+let isHost=false, roomCode='', myName='', friendName='Friend';
+let localStream=null, callType='video';
+let camOn=false, micOn=true, facing='user';
+let mode='auto', level = LOW_SPEC ? 1 : 2;
+let statsTimer=null, bad=0, good=0, lastCpuLimit=0, autoPaused=false;
+let wakeLock=null, retryTimer=null, joinTimeout=null, leaving=false;
+
+function toast(t){
+  const old=$('toast'); if(old) old.remove();
+  const d=document.createElement('div'); d.id='toast'; d.textContent=t; document.body.appendChild(d);
+  setTimeout(()=>d.remove(),3500);
+}
+function setStatus(txt,on){ $('statusTxt').textContent=txt; $('dot').className='dot'+(on?' on':''); }
+function addMsg(text, who, time){
+  const d=document.createElement('div'); d.className='m '+who;
+  const s=document.createElement('span'); s.textContent=text; d.appendChild(s);
+  if(who!=='sys'){
+    const sm=document.createElement('small');
+    sm.textContent=(who==='me'?'You':friendName)+' · '+(time||new Date()).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    d.appendChild(sm);
+  }
+  const box=$('msgs'); box.appendChild(d); box.scrollTop=box.scrollHeight;
+  while(box.children.length>300) box.removeChild(box.firstChild); // keep memory small
+}
+
+/* ============ HOME ============ */
+safe(()=>{ const n=localStorage.getItem('lc_name'); if(n) $('nameIn').value=n; });
+if(location.hash.length>1) $('codeIn').value=location.hash.slice(1).toUpperCase().slice(0,6);
+
+function readName(){
+  myName=($('nameIn').value||'').trim()||'Me';
+  safe(()=>localStorage.setItem('lc_name',myName));
+}
+$('createBtn').onclick=()=>{ if(!window.Peer){ $('homeErr').textContent='Could not load the call library. Check your internet.'; return; } readName(); startHost(); };
+$('joinBtn').onclick=()=>{
+  if(!window.Peer){ $('homeErr').textContent='Could not load the call library. Check your internet.'; return; }
+  const c=($('codeIn').value||'').trim().toUpperCase();
+  if(c.length!==6){ $('homeErr').textContent='Enter the 6-character code.'; return; }
+  readName(); startJoin(c);
+};
+$('codeIn').addEventListener('keydown',e=>{ if(e.key==='Enter') $('joinBtn').click(); });
+
+function showRoom(){
+  $('home').classList.add('hidden'); $('room').classList.remove('hidden');
+  $('codeLbl').textContent=roomCode;
+  history.replaceState(null,'','#'+roomCode);
+}
+
+/* ============ PEER SETUP ============ */
+function makePeer(id){
+  const p = id ? new Peer(id,{config:ICE,debug:0}) : new Peer({config:ICE,debug:0});
+  p.on('connection', c=>{
+    if(conn && conn.open){
+      c.on('open',()=>{ c.send({t:'full'}); setTimeout(()=>c.close(),300); });
+      return;
+    }
+    setupConn(c);
+  });
+  p.on('call', onIncoming);
+  p.on('disconnected', ()=>{ if(!leaving) safe(()=>p.reconnect()); });
+  return p;
+}
+
+function startHost(attempt){
+  isHost=true; roomCode=genCode(); leaving=false;
+  peer=makePeer(pid(roomCode));
+  peer.on('open',()=>{
+    showRoom(); setStatus('Waiting for your friend…',false);
+    addMsg('Room created. Send the code '+roomCode+' (or tap Share).','sys');
+  });
+  peer.on('error',e=>{
+    if(e.type==='unavailable-id' && (attempt||0)<5){ safe(()=>peer.destroy()); startHost((attempt||0)+1); return; }
+    if(e.type==='network'||e.type==='server-error'||e.type==='socket-error') setStatus('Server unreachable. Retrying…',false);
+    else if(!$('room').classList.contains('hidden')) toast('Error: '+e.type);
+    else $('homeErr').textContent='Could not create room ('+e.type+').';
+  });
+}
+
+function startJoin(code){
+  isHost=false; roomCode=code; leaving=false;
+  peer=makePeer();
+  peer.on('open',()=>{ showRoom(); setStatus('Connecting…',false); connectToHost(); });
+  peer.on('error',e=>{
+    if(e.type==='peer-unavailable'){ setStatus('Room not found. Retrying…',false); scheduleRetry(); }
+    else if(!$('room').classList.contains('hidden')) toast('Error: '+e.type);
+    else $('homeErr').textContent='Could not join ('+e.type+').';
+  });
+}
+
+function connectToHost(){
+  if(leaving || !peer || peer.destroyed) return;
+  clearTimeout(joinTimeout);
+  const c=peer.connect(pid(roomCode),{reliable:true});
+  setupConn(c);
+  joinTimeout=setTimeout(()=>{ if(!c.open){ safe(()=>c.close()); setStatus('Cannot reach room. Retrying…',false); scheduleRetry(); } },12000);
+}
+function scheduleRetry(){
+  if(isHost||leaving) return;
+  clearTimeout(retryTimer);
+  retryTimer=setTimeout(connectToHost,3000);
+}
+
+/* ============ DATA CONNECTION (chat) ============ */
+function setupConn(c){
+  c.on('open',()=>{
+    clearTimeout(joinTimeout);
+    if(conn && conn!==c && conn.open){ return; }
+    conn=c;
+    setStatus('Connected',true);
+    $('vidBtn').disabled=false; $('vcBtn').disabled=false;
+    c.send({t:'hello',name:myName});
+    addMsg('Connected.','sys');
+  });
+  c.on('data',d=>{
+    if(!d||typeof d!=='object') return;
+    if(d.t==='hello'){ friendName=String(d.name||'Friend').slice(0,20); setStatus('Connected to '+friendName,true); }
+    else if(d.t==='msg'){ addMsg(String(d.text).slice(0,2000),'them'); }
+    else if(d.t==='full'){ setStatus('Room is full',false); toast('That room already has two people.'); }
+    else if(d.t==='end'){ if(call||incoming) endCall(false); }
+  });
+  c.on('close',()=>{
+    if(conn!==c) return;
+    conn=null; $('vidBtn').disabled=true; $('vcBtn').disabled=true;
+    if(leaving) return;
+    setStatus(isHost?'Friend left. Waiting…':'Disconnected. Retrying…',false);
+    addMsg('Connection lost.','sys');
+    if(call) endCall(false);
+    scheduleRetry();
+  });
+  c.on('error',()=>{});
+}
+
+function sendMsg(){
+  const v=$('msgIn').value.trim();
+  if(!v) return;
+  if(!conn||!conn.open){ toast('Not connected yet.'); return; }
+  conn.send({t:'msg',text:v});
+  addMsg(v,'me'); $('msgIn').value='';
+}
+$('sendBtn').onclick=sendMsg;
+$('msgIn').addEventListener('keydown',e=>{ if(e.key==='Enter') sendMsg(); });
+
+/* ============ SHARE / LEAVE ============ */
+$('copyBtn').onclick=async()=>{
+  const url=location.origin+location.pathname+'#'+roomCode;
+  const text='Join my LiteCall room. Code: '+roomCode+'\n'+url;
+  try{
+    if(navigator.share){ await navigator.share({title:'LiteCall',text}); return; }
+  }catch(e){ /* cancelled */ }
+  try{ await navigator.clipboard.writeText(text); toast('Code and link copied.'); }
+  catch(e){ toast('Code: '+roomCode); }
+};
+$('leaveBtn').onclick=()=>{
+  leaving=true;
+  clearTimeout(retryTimer); clearTimeout(joinTimeout);
+  if(call||incoming) endCall(true);
+  safe(()=>conn&&conn.close()); safe(()=>peer&&peer.destroy());
+  conn=null; peer=null;
+  history.replaceState(null,'',location.pathname);
+  $('msgs').innerHTML=''; $('room').classList.add('hidden'); $('home').classList.remove('hidden');
+  $('vidBtn').disabled=true; $('vcBtn').disabled=true;
+};
+
+/* ============ CALLS ============ */
+async function getLocal(type){
+  stopLocal();
+  const audio={echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1,sampleRate:16000};
+  let wantVideo = type==='video';
+  const L=LEVELS[mode==='auto'?level:Number(mode)] || LEVELS[2];
+  const video = wantVideo ? {
+    facingMode:facing,
+    width:{ideal:L.w}, height:{ideal:L.h},
+    frameRate:{ideal:L.fps,max:L.fps}
+  } : false;
+  try{
+    localStream=await navigator.mediaDevices.getUserMedia({audio,video});
+  }catch(e){
+    if(wantVideo){
+      toast('Camera unavailable. Starting voice only.');
+      localStream=await navigator.mediaDevices.getUserMedia({audio,video:false});
+      callType='audio';
+    } else throw e;
+  }
+  camOn = localStream.getVideoTracks().length>0;
+  micOn = true;
+  autoPaused=false;
+  $('localVideo').srcObject = camOn ? localStream : null;
+}
+function stopLocal(){
+  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
+  $('localVideo').srcObject=null;
+}
+
+async function startCall(type){
+  if(!conn||!conn.open){ toast('Not connected yet.'); return; }
+  if(call||incoming){ toast('Already in a call.'); return; }
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ toast('Calls need HTTPS and a modern browser.'); return; }
+  callType=type;
+  try{ await getLocal(type); }catch(e){ toast('Mic or camera permission denied.'); return; }
+  const c=peer.call(conn.peer, localStream, {metadata:{type:callType}});
+  wireCall(c);
+  addMsg('Calling '+friendName+'…','sys');
+}
+
+function onIncoming(c){
+  if(call||incoming||!conn||!conn.open||c.peer!==conn.peer){ c.close(); return; }
+  incoming=c;
+  const t=(c.metadata&&c.metadata.type)==='audio'?'voice':'video';
+  $('incomingTxt').textContent=friendName+' is calling ('+t+')';
+  $('incoming').classList.remove('hidden');
+  c.on('close',()=>{ if(incoming===c){ incoming=null; $('incoming').classList.add('hidden'); } });
+}
+$('acceptBtn').onclick=async()=>{
+  const c=incoming; if(!c) return;
+  $('incoming').classList.add('hidden'); incoming=null;
+  callType=(c.metadata&&c.metadata.type)==='audio'?'audio':'video';
+  try{ await getLocal(callType); }catch(e){ toast('Mic or camera permission denied.'); c.close(); return; }
+  c.answer(localStream);
+  wireCall(c);
+};
+$('declineBtn').onclick=()=>{
+  const c=incoming; incoming=null; $('incoming').classList.add('hidden');
+  if(c){ safe(()=>c.close()); safe(()=>conn&&conn.send({t:'end'})); }
+};
+$('vidBtn').onclick=()=>startCall('video');
+$('vcBtn').onclick=()=>startCall('audio');
+
+function preferCodecs(pc){
+  // H.264 is usually hardware-accelerated on phones (less CPU, less lag). Falls back to VP8 if unavailable.
+  safe(()=>{
+    const caps=RTCRtpSender.getCapabilities('video'); if(!caps) return;
+    const rank=c=>{
+      const m=c.mimeType.toLowerCase();
+      if(m==='video/h264') return 0;
+      if(m==='video/vp8') return 1;
+      if(m==='video/vp9'||m==='video/av1') return 3;
+      return 2;
+    };
+    const sorted=caps.codecs.slice().sort((a,b)=>rank(a)-rank(b));
+    pc.getTransceivers().forEach(t=>{
+      if(t.receiver && t.receiver.track && t.receiver.track.kind==='video' && t.setCodecPreferences) t.setCodecPreferences(sorted);
+    });
+  });
+}
+
+function wireCall(c){
+  call=c;
+  $('callPanel').classList.remove('hidden');
+  $('callInfo').textContent='Connecting…';
+  $('vidBtn').disabled=true; $('vcBtn').disabled=true;
+  const isVideo = callType==='video' && camOn;
+  $('audioOnly').classList.toggle('hidden', isVideo);
+  $('localVideo').classList.toggle('hidden', !isVideo);
+  $('camBtn').classList.toggle('hidden', callType!=='video');
+  $('flipBtn').classList.toggle('hidden', callType!=='video');
+  $('selfBtn').classList.toggle('hidden', callType!=='video');
+  $('qualSel').classList.toggle('hidden', callType!=='video');
+  $('muteBtn').textContent='Mute'; $('camBtn').textContent='Camera off';
+  $('qualSel').value=mode;
+  $('localVideo').classList.toggle('back', facing!=='user');
+  safe(()=>{ preferCodecs(c.peerConnection); });
+  c.on('stream',rs=>{
+    $('remoteVideo').srcObject=rs;
+    $('remoteVideo').play&&$('remoteVideo').play().catch(()=>{});
+    applyQuality(true);
+    startStats();
+    acquireWake();
+  });
+  c.on('close',()=>{ if(call===c) endCall(false); });
+  c.on('error',()=>{ if(call===c) endCall(false); });
+}
+
+function endCall(notify){
+  if(notify!==false) safe(()=>conn&&conn.open&&conn.send({t:'end'}));
+  const c=call; call=null;
+  if(c) safe(()=>c.close());
+  if(incoming){ safe(()=>incoming.close()); incoming=null; $('incoming').classList.add('hidden'); }
+  clearInterval(statsTimer); statsTimer=null;
+  stopLocal();
+  $('remoteVideo').srcObject=null;
+  $('callPanel').classList.add('hidden');
+  releaseWake();
+  if(conn&&conn.open){ $('vidBtn').disabled=false; $('vcBtn').disabled=false; }
+  addMsg('Call ended.','sys');
+}
+$('endBtn').onclick=()=>endCall(true);
+
+/* ---- call controls ---- */
+$('muteBtn').onclick=()=>{
+  if(!localStream) return;
+  micOn=!micOn;
+  localStream.getAudioTracks().forEach(t=>t.enabled=micOn);
+  $('muteBtn').textContent=micOn?'Mute':'Unmute';
+};
+function videoSender(){
+  if(!call||!call.peerConnection) return null;
+  const t=call.peerConnection.getTransceivers().find(t=>t.receiver&&t.receiver.track&&t.receiver.track.kind==='video');
+  return t?t.sender:null;
+}
+async function setCam(on){
+  const s=videoSender();
+  if(!on){
+    if(localStream) localStream.getVideoTracks().forEach(t=>{ t.stop(); localStream.removeTrack(t); });
+    if(s) await s.replaceTrack(null).catch(()=>{});
+    camOn=false;
+    $('localVideo').srcObject=null;
+    $('audioOnly').classList.remove('hidden'); $('audioOnly').textContent='Camera is off';
+    $('camBtn').textContent='Camera on';
+  } else {
+    const L=LEVELS[mode==='auto'?level:Number(mode)]||LEVELS[2];
+    try{
+      const vs=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:L.w},height:{ideal:L.h},frameRate:{ideal:L.fps,max:L.fps}}});
+      const vt=vs.getVideoTracks()[0];
+      localStream.addTrack(vt);
+      if(s) await s.replaceTrack(vt).catch(()=>{});
+      camOn=true; autoPaused=false; bad=0; good=0;
+      $('localVideo').srcObject=localStream;
+      $('audioOnly').classList.add('hidden');
+      $('camBtn').textContent='Camera off';
+      applyQuality(true);
+    }catch(e){ toast('Could not start camera.'); }
+  }
+}
+$('camBtn').onclick=()=>setCam(!camOn);
+$('flipBtn').onclick=async()=>{
+  if(!camOn||!localStream) return;
+  facing = facing==='user'?'environment':'user';
+  await setCam(false); await setCam(true);
+  $('localVideo').classList.toggle('back', facing!=='user');
+};
+$('selfBtn').onclick=()=>{
+  const v=$('localVideo'); v.classList.toggle('hidden');
+  $('selfBtn').textContent=v.classList.contains('hidden')?'Show me':'Hide me';
+};
+$('qualSel').onchange=()=>{
+  mode=$('qualSel').value;
+  if(mode!=='auto') level=Number(mode);
+  bad=0; good=0;
+  applyQuality(true);
+  if(!camOn && callType==='video') toast('Camera is off. Tap Camera on to send video.');
+};
+
+/* ============ QUALITY ENGINE ============ */
+async function applyQuality(force){
+  const L=LEVELS[level]; if(!L||!call||!call.peerConnection) return;
+  // Capture size and frame rate (less work for the phone)
+  if(localStream){
+    const vt=localStream.getVideoTracks()[0];
+    if(vt) vt.applyConstraints({width:{ideal:L.w},height:{ideal:L.h},frameRate:{ideal:L.fps,max:L.fps}}).catch(()=>{});
+  }
+  // Network bitrate caps
+  const pc=call.peerConnection;
+  for(const t of pc.getTransceivers()){
+    const s=t.sender; if(!s) continue;
+    const kind=t.receiver&&t.receiver.track&&t.receiver.track.kind;
+    try{
+      const p=s.getParameters();
+      if(!p.encodings||!p.encodings.length) p.encodings=[{}];
+      if(kind==='video'){
+        p.encodings[0].maxBitrate=L.kbps*1000;
+        p.encodings[0].maxFramerate=L.fps;
+        p.degradationPreference='maintain-framerate';
+      } else if(kind==='audio'){
+        p.encodings[0].maxBitrate=AUDIO_KBPS*1000;
+      }
+      await s.setParameters(p);
+    }catch(e){ /* some browsers reject until negotiation finishes; next tick retries */ }
+  }
+  updateInfo();
+}
+
+function startStats(){
+  clearInterval(statsTimer); bad=0; good=0;
+  statsTimer=setInterval(pollStats,3000);
+}
+
+let lastInfo={rtt:null,fps:null,limit:'none',loss:0};
+async function pollStats(){
+  if(!call||!call.peerConnection) return;
+  let rtt=null,fps=null,limit='none',loss=0;
+  try{
+    const rep=await call.peerConnection.getStats();
+    rep.forEach(r=>{
+      if(r.type==='outbound-rtp' && r.kind==='video'){
+        if(r.framesPerSecond!=null) fps=r.framesPerSecond;
+        if(r.qualityLimitationReason) limit=r.qualityLimitationReason;
+      }
+      if(r.type==='remote-inbound-rtp'){
+        if(r.fractionLost!=null) loss=Math.max(loss,r.fractionLost);
+        if(r.roundTripTime!=null) rtt=r.roundTripTime;
+      }
+      if(r.type==='candidate-pair' && r.nominated && r.currentRoundTripTime!=null && rtt==null) rtt=r.currentRoundTripTime;
+    });
+  }catch(e){ return; }
+  lastInfo={rtt,fps,limit,loss};
+  updateInfo();
+  if(mode!=='auto' || callType!=='video' || !camOn) return;
+
+  const isBad  = loss>0.06 || (rtt!=null&&rtt>0.55) || limit==='cpu';
+  const isGood = loss<0.02 && (rtt==null||rtt<0.3) && limit==='none';
+  if(limit==='cpu') lastCpuLimit=Date.now();
+  if(isBad){ bad++; good=0; } else if(isGood){ good++; bad=0; } else { bad=0; good=0; }
+
+  if(bad>=2 && level>1){
+    level--; bad=0; applyQuality(true);
+    toast('Weak connection. Quality: '+LEVELS[level].name);
+  } else if(bad>=4 && level===1 && loss>0.15){
+    autoPaused=true; bad=0;
+    setCam(false);
+    toast('Video paused to keep audio clear. Tap Camera on to resume.');
+  } else if(good>=6 && level<MAX_AUTO && Date.now()-lastCpuLimit>60000){
+    level++; good=0; applyQuality(true);
+    toast('Connection improved. Quality: '+LEVELS[level].name);
+  }
+}
+
+function updateInfo(){
+  const parts=[];
+  if(callType==='video' && camOn) parts.push((mode==='auto'?'Auto · ':'')+LEVELS[level].name);
+  else if(callType==='video') parts.push('Camera off');
+  else parts.push('Voice');
+  if(lastInfo.rtt!=null) parts.push(Math.round(lastInfo.rtt*1000)+' ms');
+  if(lastInfo.fps) parts.push(Math.round(lastInfo.fps)+' fps');
+  $('callInfo').textContent=parts.join(' · ');
+}
+
+/* ============ SCREEN WAKE LOCK ============ */
+async function acquireWake(){ try{ if(navigator.wakeLock) wakeLock=await navigator.wakeLock.request('screen'); }catch(e){} }
+function releaseWake(){ try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && call) acquireWake(); });
+
+window.addEventListener('beforeunload',()=>{ safe(()=>peer&&peer.destroy()); });
+
+})();
+</script>
+</body>
+</html>
